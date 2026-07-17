@@ -282,7 +282,16 @@
   .empty-state { padding: 30px 10px; text-align: center; color: var(--text-muted); font-size: 12.5px; }
   .scroll-hint { display: none; font-size: 11px; color: var(--text-muted); margin: 0 0 6px; }
   @media (max-width: 620px) { .scroll-hint { display: block; } }
+  .export-btn {
+    display: flex; align-items: center; gap: 6px; border: 1px solid var(--series-1);
+    background: var(--series-1); color: #fff; border-radius: 7px; padding: 7px 14px;
+    font-size: 12px; cursor: pointer; height: 32px; white-space: nowrap;
+  }
+  .export-btn:hover { opacity: 0.9; }
+  .export-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .result-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 <div class="viz-root">
@@ -387,7 +396,10 @@
         <div class="profile-grid" id="profileGrid"></div>
       </div>
 
-      <div class="result-count" id="resultCount"></div>
+      <div class="result-row">
+        <div class="result-count" id="resultCount"></div>
+        <button class="export-btn" id="exportBtn" type="button">⬇ ส่งออกเป็น Excel</button>
+      </div>
       <p class="scroll-hint">เลื่อนซ้าย-ขวาเพื่อดูข้อมูลทั้งหมด →</p>
       <div class="detail-table-wrap">
         <table id="detailTable">
@@ -593,12 +605,17 @@ document.body.addEventListener('mousemove', function (e) {
     var profileBanner = document.getElementById('profileBanner');
     var profileTitle = document.getElementById('profileTitle');
     var profileGrid = document.getElementById('profileGrid');
+    var exportBtn = document.getElementById('exportBtn');
 
     var state = {
       province: '', amphoe: '', land: '',
       cats: new Set(DETAIL.categories),
       conds: new Set(DETAIL.conditions)
     };
+
+    // holds the FULL filtered result set (unclipped by the 2,000-row table preview cap)
+    // so export always includes everything matching the current filters.
+    var lastFilteredRows = [];
 
     DETAIL.provinces.forEach(function (p) {
       var o = document.createElement('option'); o.value = p; o.textContent = p; provSel.appendChild(o);
@@ -650,6 +667,48 @@ document.body.addEventListener('mousemove', function (e) {
       render();
     });
 
+    if (exportBtn) {
+      exportBtn.addEventListener('click', function () {
+        try {
+          if (typeof XLSX === 'undefined') {
+            alert('ไม่สามารถโหลดตัวสร้างไฟล์ Excel ได้ (ต้องมีอินเทอร์เน็ตเชื่อมต่อขณะเปิดหน้านี้) กรุณาลองใหม่อีกครั้ง');
+            return;
+          }
+          if (!lastFilteredRows.length) {
+            alert('ไม่มีข้อมูลตามเงื่อนไขที่เลือกให้ส่งออก');
+            return;
+          }
+
+          var headerRow = ['จังหวัด', 'อำเภอ', 'ประเภทอาคาร', 'หลังที่', 'ลักษณะโครงสร้าง', 'ปีที่ก่อสร้าง (พ.ศ.)', 'อายุการใช้งาน (ปี)', 'ประเภทที่ดิน', 'สภาพการใช้งาน', 'พิกัด', 'ที่อยู่'];
+          var aoa = [headerRow];
+          lastFilteredRows.forEach(function (r) {
+            aoa.push([
+              r.province, r.amphoe, r.category, r.instance,
+              r.type || '', r.year || '', r.age || '', r.land || '',
+              r.condition || '', r.coord || '', r.address || ''
+            ]);
+          });
+
+          var ws = XLSX.utils.aoa_to_sheet(aoa);
+          ws['!cols'] = [
+            { wch: 12 }, { wch: 16 }, { wch: 26 }, { wch: 7 }, { wch: 18 },
+            { wch: 14 }, { wch: 12 }, { wch: 18 }, { wch: 14 }, { wch: 20 }, { wch: 40 }
+          ];
+          ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: headerRow.length - 1 } }) };
+
+          var wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, 'ข้อมูลอาคาร');
+
+          var namePart = state.amphoe ? state.amphoe : (state.province ? state.province : 'ทั้งหมด');
+          var filename = 'อาคาร_' + namePart + '_' + lastFilteredRows.length + 'รายการ.xlsx';
+          XLSX.writeFile(wb, filename);
+        } catch (e) {
+          console.error('export failed', e);
+          alert('เกิดข้อผิดพลาดระหว่างส่งออกไฟล์ Excel กรุณาลองใหม่อีกครั้ง');
+        }
+      });
+    }
+
     var condClass = { 'ใช้การได้ดี': 'good', 'พอใช้การได้': 'warning', 'ชำรุดทรุดโทรม': 'serious', 'ใช้การไม่ได้': 'critical' };
 
     function renderProfile() {
@@ -679,6 +738,8 @@ document.body.addEventListener('mousemove', function (e) {
         if (!r.condition && state.conds.size !== DETAIL.conditions.length) return false;
         return true;
       });
+      lastFilteredRows = rows;
+      if (exportBtn) exportBtn.disabled = rows.length === 0;
       resultCount.textContent = 'พบ ' + rows.length.toLocaleString() + ' รายการอาคาร';
       detailBody.innerHTML = '';
       if (rows.length === 0) {
