@@ -306,6 +306,8 @@
     background: var(--critical); color: #fff; border: none; border-radius: 8px;
     padding: 6px 12px; font-size: 12px; cursor: pointer; white-space: nowrap;
   }
+  .coord-link { color: var(--series-1); text-decoration: none; }
+  .coord-link:hover { text-decoration: underline; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
@@ -832,6 +834,16 @@ function initDetailExplorer(DETAIL) {
 
     var condClass = { 'ใช้การได้ดี': 'good', 'พอใช้การได้': 'warning', 'ชำรุดทรุดโทรม': 'serious', 'ใช้การไม่ได้': 'critical' };
 
+    function escapeHtml(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    function coordLink(coord) {
+      var c = (coord || '').trim();
+      if (!c) return '-';
+      var url = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(c);
+      return '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer" class="coord-link">' + escapeHtml(c) + ' ↗</a>';
+    }
+
     function renderProfile() {
       if (!state.amphoe) { profileBanner.classList.remove('show'); return; }
       var rows = DETAIL.records.filter(function (r) { return r.province === state.province && r.amphoe === state.amphoe; });
@@ -882,7 +894,7 @@ function initDetailExplorer(DETAIL) {
           '<td>' + (r.age || '-') + '</td>' +
           '<td class="wrap-cell">' + (r.land || '-') + '</td>' +
           '<td>' + condHtml + '</td>' +
-          '<td class="wrap-cell">' + (r.coord || '-') + '</td>' +
+          '<td class="wrap-cell">' + coordLink(r.coord) + '</td>' +
           '<td class="wrap-cell">' + (r.address || '-') + '</td>';
         frag.appendChild(tr);
       });
