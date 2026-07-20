@@ -108,6 +108,9 @@
   .stat-tile .label { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
   .stat-tile .value { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
   .stat-tile .sub { font-size: 11.5px; color: var(--text-muted); margin-top: 4px; }
+  .stat-tile.wide { grid-column: span 2; }
+  .stat-tile.wide .sub { line-height: 1.7; margin-top: 6px; }
+  @media (max-width: 620px) { .stat-tile.wide { grid-column: span 1; } }
 
   .card {
     background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
@@ -624,10 +627,10 @@ function renderOverview(DATA) {
     document.getElementById('matChart').innerHTML = '';
 
     var totalHas = DATA.categories.reduce(function (s, c) { return s + c.has; }, 0);
-    var totalMulti = DATA.categories.reduce(function (s, c) { return s + c.multi.reduce(function (a, m) { return a + m.count; }, 0); }, 0);
-    var worst = DATA.categories.slice().sort(function (a, b) {
-      return (b.condition['ชำรุดทรุดโทรม'] + b.condition['ใช้การไม่ได้']) - (a.condition['ชำรุดทรุดโทรม'] + a.condition['ใช้การไม่ได้']);
-    })[0];
+    var issueByCat = DATA.categories.map(function (c) {
+      return { name: c.name, cnt: c.condition['ชำรุดทรุดโทรม'] + c.condition['ใช้การไม่ได้'] };
+    }).sort(function (a, b) { return b.cnt - a.cnt; });
+    var worst = issueByCat[0];
 
     var recCountEl = document.getElementById('recCountText');
     if (recCountEl) recCountEl.textContent = DATA.total_records.toLocaleString();
@@ -635,13 +638,15 @@ function renderOverview(DATA) {
     var stats = [
       { label: 'จำนวนอำเภอที่ตอบแบบสำรวจ', value: DATA.total_records.toLocaleString(), sub: DATA.provinces + ' จังหวัดทั่วประเทศ' },
       { label: 'ประเภทอาคารที่สำรวจ', value: DATA.categories.length, sub: 'ที่ว่าการฯ, หอประชุม, บ้านพัก 4 ระดับ, แฟลต' },
-      { label: 'อำเภอที่มีอาคารมากกว่า 1 หลัง (รวมทุกประเภท)', value: totalMulti.toLocaleString(), sub: 'นับซ้ำได้ในหลายประเภท' },
-      { label: 'ประเภทที่ทรุดโทรม/ใช้การไม่ได้มากสุด', value: worst.name, sub: (worst.condition['ชำรุดทรุดโทรม'] + worst.condition['ใช้การไม่ได้']) + ' แห่ง' },
+      {
+        label: 'ประเภทที่ทรุดโทรม/ใช้การไม่ได้มากสุด', value: worst.name, wide: true,
+        sub: issueByCat.map(function (c) { return c.name + ': <b>' + c.cnt.toLocaleString() + '</b> แห่ง'; }).join('<br>')
+      },
     ];
     var statRow = document.getElementById('statRow');
     stats.forEach(function (s) {
       var el = document.createElement('div');
-      el.className = 'stat-tile';
+      el.className = 'stat-tile' + (s.wide ? ' wide' : '');
       el.innerHTML = '<div class="label">' + s.label + '</div><div class="value">' + s.value + '</div><div class="sub">' + s.sub + '</div>';
       statRow.appendChild(el);
     });
