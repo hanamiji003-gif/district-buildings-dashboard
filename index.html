@@ -566,12 +566,18 @@ function processRows(rows) {
     if (status === 'มี') {
       cm.hasSet.add(key);
       cm.instanceCount[key] = (cm.instanceCount[key] || 0) + 1;
-      if (condition && cm.condition.hasOwnProperty(condition)) cm.condition[condition]++;
-      if (land) landTypesSet.add(land);
-      if (type) {
-        var matKey = MATERIAL_ORDER.indexOf(type) >= 0 ? type : 'อื่นๆ';
-        cm.material[matKey]++;
+      // condition/material breakdown reflects the MAIN building (หลังที่ 1) only per
+      // amphoe+category, matching the original workbook's "สภาพอาคาร(หลังที่1)" methodology —
+      // a 2nd/3rd/4th building at the same amphoe must not inflate these totals past "has".
+      var isMainInstance = (instance === '1') || (!instance && cm.instanceCount[key] === 1);
+      if (isMainInstance) {
+        if (condition && cm.condition.hasOwnProperty(condition)) cm.condition[condition]++;
+        if (type) {
+          var matKey = MATERIAL_ORDER.indexOf(type) >= 0 ? type : 'อื่นๆ';
+          cm.material[matKey]++;
+        }
       }
+      if (land) landTypesSet.add(land);
       detailRecords.push({
         province: province, amphoe: amphoe, category: category,
         instance: instance || String(cm.instanceCount[key]),
