@@ -317,6 +317,31 @@
   }
   .coord-link { color: var(--series-1); text-decoration: none; }
   .coord-link:hover { text-decoration: underline; }
+
+  .building-gallery-card { margin-bottom: 16px; }
+  .building-gallery {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px;
+  }
+  .building-gallery-item {
+    margin: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+    background: var(--surface-1);
+  }
+  .building-gallery-item img {
+    display: block; width: 100%; height: 130px; object-fit: cover; background: var(--page-plane);
+  }
+  .building-gallery-item figcaption {
+    padding: 8px 10px; font-size: 12px; color: var(--text-secondary); text-align: center;
+  }
+  .building-gallery-item.img-broken img { display: none; }
+  .building-gallery-item.img-broken { position: relative; }
+  .building-gallery-item.img-broken::before {
+    content: "ไม่สามารถโหลดรูปได้"; display: flex; align-items: center; justify-content: center;
+    height: 130px; font-size: 11.5px; color: var(--text-muted); background: var(--page-plane);
+  }
+  @media (max-width: 620px) {
+    .building-gallery { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+    .building-gallery-item img { height: 100px; }
+  }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
@@ -336,6 +361,36 @@
     <div class="load-status" id="loadStatus">
       <span id="loadStatusText">⏳ กำลังโหลดข้อมูลล่าสุดจาก Google Sheets…</span>
       <button class="load-refresh-btn" id="refreshBtn" type="button" style="display:none;">🔄 รีเฟรชข้อมูล</button>
+    </div>
+
+    <div class="card building-gallery-card">
+      <h2>ตัวอย่างอาคารแต่ละประเภท</h2>
+      <div class="building-gallery">
+        <figure class="building-gallery-item">
+          <img loading="lazy" src="https://lh3.googleusercontent.com/d/1f4h1fpHGgO0wDHnZWBIwo3GkL39xvrTW=w800" alt="ตัวอย่างอาคารที่ว่าการอำเภอ" onerror="this.closest('figure').classList.add('img-broken')">
+          <figcaption>อาคารที่ว่าการอำเภอ</figcaption>
+        </figure>
+        <figure class="building-gallery-item">
+          <img loading="lazy" src="https://lh3.googleusercontent.com/d/1VJ7WLeQIfsG9PrpkcY_k1VB1SAxUGaUD=w800" alt="ตัวอย่างหอประชุมอำเภอ" onerror="this.closest('figure').classList.add('img-broken')">
+          <figcaption>หอประชุมอำเภอ</figcaption>
+        </figure>
+        <figure class="building-gallery-item">
+          <img loading="lazy" src="https://lh3.googleusercontent.com/d/1wpdHCW6SYpHaVmBJt7uSHVLHAcAMwea6=w800" alt="ตัวอย่างบ้านพักข้าราชการ ระดับ 9" onerror="this.closest('figure').classList.add('img-broken')">
+          <figcaption>บ้านพักข้าราชการ ระดับ 9</figcaption>
+        </figure>
+        <figure class="building-gallery-item">
+          <img loading="lazy" src="https://lh3.googleusercontent.com/d/1VQ8cammA4tkg3NBQnV9DqZ-9hBqazhhs=w800" alt="ตัวอย่างบ้านพักข้าราชการ ระดับ 7-8" onerror="this.closest('figure').classList.add('img-broken')">
+          <figcaption>บ้านพักข้าราชการ ระดับ 7-8</figcaption>
+        </figure>
+        <figure class="building-gallery-item">
+          <img loading="lazy" src="https://lh3.googleusercontent.com/d/1Az9uVMdzflFJ3Vh69UkIEZMTVz0eeqye=w800" alt="ตัวอย่างบ้านพักข้าราชการ ระดับ 3-6" onerror="this.closest('figure').classList.add('img-broken')">
+          <figcaption>บ้านพักข้าราชการ ระดับ 3-6</figcaption>
+        </figure>
+        <figure class="building-gallery-item">
+          <img loading="lazy" src="https://lh3.googleusercontent.com/d/1AoyA9sm9lS9Twk7-HVwvDOAiTvqReAHo=w800" alt="ตัวอย่างบ้านพักข้าราชการ ระดับ 1-2" onerror="this.closest('figure').classList.add('img-broken')">
+          <figcaption>บ้านพักข้าราชการ ระดับ 1-2</figcaption>
+        </figure>
+      </div>
     </div>
 
     <div id="dashboardBody" style="display:none;">
