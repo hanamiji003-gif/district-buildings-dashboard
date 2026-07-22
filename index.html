@@ -110,6 +110,9 @@
   .stat-tile .sub { font-size: 11.5px; color: var(--text-muted); margin-top: 4px; }
   .stat-tile.wide { grid-column: span 2; }
   .stat-tile.wide .sub { line-height: 1.7; margin-top: 6px; }
+  .stat-tile.wide3 { grid-column: span 3; }
+  .stat-tile.wide3 .sub { line-height: 1.7; margin-top: 6px; }
+  .stat-tile.wide3 .sub .grand-total { display: block; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); color: var(--text-primary); }
   @media (max-width: 620px) { .stat-tile.wide { grid-column: span 1; } }
 
   .card {
@@ -164,6 +167,7 @@
   @media (max-width: 900px) {
     .two-col { grid-template-columns: 1fr; }
     .stat-row { grid-template-columns: repeat(2, 1fr); }
+    .stat-tile.wide3 { grid-column: span 2; }
     .bar-row, .cond-row { grid-template-columns: 130px 1fr; }
     .bar-row .bar-meta { grid-column: 1 / span 2; text-align: right; }
   }
@@ -210,6 +214,7 @@
 
   @media (max-width: 380px) {
     .stat-row { grid-template-columns: 1fr; }
+    .stat-tile.wide3 { grid-column: span 1; }
     .profile-grid { grid-template-columns: 1fr; }
   }
 
@@ -539,6 +544,8 @@ function processRows(rows) {
   var landTypesSet = new Set();
   var detailRecords = [];
   var locSet = new Set();
+  var tpkSet = new Set();
+  var realAmphoeSet = new Set();
 
   rows.forEach(function (r) {
     var province = (r['จังหวัด'] || '').trim();
@@ -562,20 +569,17 @@ function processRows(rows) {
     if (!amphoeByProv[province]) amphoeByProv[province] = new Set();
     amphoeByProv[province].add(amphoe);
     locSet.add(key);
+    if (amphoe.indexOf('ทปค.จ.') === 0) tpkSet.add(key); else realAmphoeSet.add(key);
 
     if (status === 'มี') {
       cm.hasSet.add(key);
       cm.instanceCount[key] = (cm.instanceCount[key] || 0) + 1;
-      // condition/material breakdown reflects the MAIN building (หลังที่ 1) only per
-      // amphoe+category, matching the original workbook's "สภาพอาคาร(หลังที่1)" methodology —
-      // a 2nd/3rd/4th building at the same amphoe must not inflate these totals past "has".
-      var isMainInstance = (instance === '1') || (!instance && cm.instanceCount[key] === 1);
-      if (isMainInstance) {
-        if (condition && cm.condition.hasOwnProperty(condition)) cm.condition[condition]++;
-        if (type) {
-          var matKey = MATERIAL_ORDER.indexOf(type) >= 0 ? type : 'อื่นๆ';
-          cm.material[matKey]++;
-        }
+      // condition/material breakdown counts EVERY building instance (หลังที่ 1, 2, 3, 4…),
+      // not just the main one — an amphoe with 3 buildings of a type contributes 3 tallies here.
+      if (condition && cm.condition.hasOwnProperty(condition)) cm.condition[condition]++;
+      if (type) {
+        var matKey = MATERIAL_ORDER.indexOf(type) >= 0 ? type : 'อื่นๆ';
+        cm.material[matKey]++;
       }
       if (land) landTypesSet.add(land);
       detailRecords.push({
@@ -589,7 +593,10 @@ function processRows(rows) {
     }
   });
 
-  var DATA = { categories: [], total_records: locSet.size, provinces: provinceSet.size };
+  var DATA = {
+    categories: [], total_records: locSet.size, provinces: provinceSet.size,
+    amphoe_count: realAmphoeSet.size, tpk_count: tpkSet.size
+  };
   CATEGORY_ORDER.forEach(function (name) {
     var cm = catMap[name];
     var has = cm.hasSet.size, no = cm.noSet.size, total = has + no;
@@ -634,26 +641,30 @@ function renderOverview(DATA) {
     document.getElementById('matChart').innerHTML = '';
 
     var totalHas = DATA.categories.reduce(function (s, c) { return s + c.has; }, 0);
+    // fixed category order (not sorted by severity) — matches the survey's own category ordering
     var issueByCat = DATA.categories.map(function (c) {
       return { name: c.name, cnt: c.condition['ชำรุดทรุดโทรม'] + c.condition['ใช้การไม่ได้'] };
-    }).sort(function (a, b) { return b.cnt - a.cnt; });
-    var worst = issueByCat[0];
+    });
+    var issueTotal = issueByCat.reduce(function (s, c) { return s + c.cnt; }, 0);
 
     var recCountEl = document.getElementById('recCountText');
     if (recCountEl) recCountEl.textContent = DATA.total_records.toLocaleString();
 
     var stats = [
-      { label: 'จำนวนอำเภอที่ตอบแบบสำรวจ', value: DATA.total_records.toLocaleString(), sub: DATA.provinces + ' จังหวัดทั่วประเทศ' },
-      { label: 'ประเภทอาคารที่สำรวจ', value: DATA.categories.length, sub: 'ที่ว่าการฯ, หอประชุม, บ้านพัก 4 ระดับ, แฟลต' },
       {
-        label: 'ประเภทที่ทรุดโทรม/ใช้การไม่ได้มากสุด', value: worst.name, wide: true,
-        sub: issueByCat.map(function (c) { return c.name + ': <b>' + c.cnt.toLocaleString() + '</b> แห่ง'; }).join('<br>')
+        label: 'จำนวนอำเภอ/ที่ทำการปกครองจังหวัดที่ตอบแบบสำรวจ', value: DATA.total_records.toLocaleString(),
+        sub: '(' + DATA.amphoe_count.toLocaleString() + ' อำเภอ และ ' + DATA.tpk_count.toLocaleString() + ' ที่ทำการปกครองจังหวัด)<br>' + DATA.provinces + ' จังหวัดทั่วประเทศ'
+      },
+      {
+        label: 'จำนวนอาคารที่ชำรุดทรุดโทรม/ใช้การไม่ได้', value: issueTotal.toLocaleString() + ' แห่ง', wide3: true,
+        sub: issueByCat.map(function (c) { return c.name + ': <b>' + c.cnt.toLocaleString() + '</b> แห่ง'; }).join('<br>') +
+          '<span class="grand-total">รวมทั้งหมด: <b>' + issueTotal.toLocaleString() + '</b> แห่ง</span>'
       },
     ];
     var statRow = document.getElementById('statRow');
     stats.forEach(function (s) {
       var el = document.createElement('div');
-      el.className = 'stat-tile' + (s.wide ? ' wide' : '');
+      el.className = 'stat-tile' + (s.wide ? ' wide' : '') + (s.wide3 ? ' wide3' : '');
       el.innerHTML = '<div class="label">' + s.label + '</div><div class="value">' + s.value + '</div><div class="sub">' + s.sub + '</div>';
       statRow.appendChild(el);
     });
