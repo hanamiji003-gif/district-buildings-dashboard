@@ -319,6 +319,17 @@
   .coord-link:hover { text-decoration: underline; }
 
   .building-gallery-card { margin-bottom: 16px; }
+  .building-gallery-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    flex-wrap: wrap; margin-bottom: 12px;
+  }
+  .building-gallery-head h2 { margin: 0; }
+  .gallery-more-btn {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600;
+    color: #fff; background: var(--series-1); border-radius: 8px; padding: 6px 12px;
+    text-decoration: none; white-space: nowrap;
+  }
+  .gallery-more-btn:hover { opacity: 0.9; }
   .building-gallery {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px;
   }
@@ -364,7 +375,10 @@
     </div>
 
     <div class="card building-gallery-card">
-      <h2>ตัวอย่างอาคารแต่ละประเภท</h2>
+      <div class="building-gallery-head">
+        <h2>ตัวอย่างอาคารแต่ละประเภท</h2>
+        <a class="gallery-more-btn" href="https://drive.google.com/drive/u/1/folders/10SaHy-IV5esVEN8N-D-LwRbS49KIvuPI" target="_blank" rel="noopener noreferrer">📁 ดูรูปเพิ่มเติม</a>
+      </div>
       <div class="building-gallery">
         <figure class="building-gallery-item">
           <img loading="lazy" src="https://lh3.googleusercontent.com/d/1f4h1fpHGgO0wDHnZWBIwo3GkL39xvrTW=w800" alt="ตัวอย่างอาคารที่ว่าการอำเภอ" onerror="this.closest('figure').classList.add('img-broken')">
