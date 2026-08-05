@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light" id="colorSchemeMeta">
 <title>สรุปจำนวนอาคารที่ว่าการอำเภอ หอประชุมอำเภอ อาคารที่พักอาศัย ค.ส.ล. และบ้านพักข้าราชการทุกระดับ</title>
 <style>
-  .viz-root {
+  :root, .viz-root {
     color-scheme: light;
     --surface-1:      #fcfcfb;
     --page-plane:     #f9f9f7;
@@ -30,7 +31,7 @@
     --critical:       #d03b3b;
   }
   @media (prefers-color-scheme: dark) {
-    :root:where(:not([data-theme="light"])) .viz-root {
+    :root:where(:not([data-theme="light"])), :root:where(:not([data-theme="light"])) .viz-root {
       color-scheme: dark;
       --surface-1:      #1a1a19;
       --page-plane:     #0d0d0d;
@@ -55,7 +56,7 @@
       --critical:       #d03b3b;
     }
   }
-  :root[data-theme="dark"] .viz-root {
+  :root[data-theme="dark"], :root[data-theme="dark"] .viz-root {
     color-scheme: dark;
     --surface-1:      #1a1a19;
     --page-plane:     #0d0d0d;
@@ -374,6 +375,11 @@
   #mapSummaryTable tbody tr.map-summary-row:active { background: var(--border); }
   .map-summary-loc { display: inline-flex; align-items: center; gap: 5px; }
   .map-summary-loc .msl-pin { opacity: 0.65; }
+  .map-summary-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+  .map-summary-badge {
+    display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 600;
+    padding: 2px 7px; border-radius: 999px; border: 1px solid; white-space: nowrap; background: var(--surface-1);
+  }
   .building-gallery {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px;
   }
@@ -632,7 +638,8 @@
                 <tr>
                   <th>จังหวัด</th>
                   <th>อำเภอ</th>
-                  <th>จำนวนหมุด</th>
+                  <th>ประเภทอาคาร (จำนวนหลัง)</th>
+                  <th>รวม</th>
                 </tr>
               </thead>
               <tbody id="mapSummaryBody"></tbody>
@@ -654,6 +661,7 @@
 (function () {
   try {
     var toggle = document.getElementById('themeToggle');
+    var schemeMeta = document.getElementById('colorSchemeMeta');
     var manual = null;
     toggle.addEventListener('click', function () {
       var root = document.documentElement;
@@ -662,6 +670,7 @@
       } else {
         manual = 'dark'; root.setAttribute('data-theme', 'dark'); toggle.textContent = 'โหมดสว่าง';
       }
+      if (schemeMeta) schemeMeta.setAttribute('content', manual);
     });
   } catch (e) { console.error('theme toggle init failed', e); }
 })();
@@ -1251,6 +1260,15 @@ function parseCoordForMap(raw) {
 // ============================================================
 var MAP_CATEGORY_COLORS = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--series-4)', 'var(--series-5)', 'var(--series-6)', 'var(--series-7)'];
 var MAP_COND_CLASS = { 'ใช้การได้ดี': 'good', 'พอใช้การได้': 'warning', 'ชำรุดทรุดโทรม': 'serious', 'ใช้การไม่ได้': 'critical' };
+var MAP_CATEGORY_SHORT = {
+  'อาคารที่ว่าการอำเภอ': 'ที่ว่าการอำเภอ',
+  'หอประชุมอำเภอ': 'หอประชุม',
+  'อาคารที่พักอาศัย ค.ส.ล. 4 ชั้น (แฟลต)': 'แฟลต',
+  'บ้านพักข้าราชการ ระดับ 9': 'ระดับ 9',
+  'บ้านพักข้าราชการ ระดับ 7-8': 'ระดับ 7-8',
+  'บ้านพักข้าราชการ ระดับ 3-6': 'ระดับ 3-6',
+  'บ้านพักข้าราชการ ระดับ 1-2': 'ระดับ 1-2'
+};
 
 function mapEscapeHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -1437,23 +1455,32 @@ function renderMapSummaryTable(rows) {
     var groups = {};
     rows.forEach(function (r) {
       var key = r.province + '|' + r.amphoe;
-      if (!groups[key]) groups[key] = { province: r.province, amphoe: r.amphoe, count: 0, lats: [], lngs: [] };
+      if (!groups[key]) groups[key] = { province: r.province, amphoe: r.amphoe, count: 0, lats: [], lngs: [], catCounts: {} };
       groups[key].count++;
       groups[key].lats.push(r._lat);
       groups[key].lngs.push(r._lng);
+      groups[key].catCounts[r.category] = (groups[key].catCounts[r.category] || 0) + 1;
     });
     var groupList = Object.keys(groups).map(function (k) { return groups[k]; });
     groupList.sort(function (a, b) { return b.count - a.count || a.province.localeCompare(b.province, 'th'); });
 
     if (!groupList.length) {
-      body.innerHTML = '<tr><td colspan="3" class="empty-state">ไม่พบข้อมูลตามตัวกรองที่เลือก</td></tr>';
+      body.innerHTML = '<tr><td colspan="4" class="empty-state">ไม่พบข้อมูลตามตัวกรองที่เลือก</td></tr>';
       return;
     }
 
     body.innerHTML = groupList.map(function (g, idx) {
+      var categories = (window.__mapDetail && window.__mapDetail.categories) || CATEGORY_ORDER;
+      var badgesHtml = categories.filter(function (cat) { return g.catCounts[cat]; }).map(function (cat) {
+        var colorIdx = categories.indexOf(cat);
+        var color = MAP_CATEGORY_COLORS[colorIdx >= 0 ? colorIdx % MAP_CATEGORY_COLORS.length : 0];
+        var label = MAP_CATEGORY_SHORT[cat] || cat;
+        return '<span class="map-summary-badge" style="border-color:' + color + ';color:' + color + '">' + mapEscapeHtml(label) + ' ' + g.catCounts[cat] + '</span>';
+      }).join('');
       return '<tr class="map-summary-row" data-group-idx="' + idx + '" tabindex="0">' +
         '<td>' + mapEscapeHtml(g.province) + '</td>' +
         '<td><span class="map-summary-loc"><span class="msl-pin">📍</span>' + mapEscapeHtml(g.amphoe) + '</span></td>' +
+        '<td><div class="map-summary-badges">' + badgesHtml + '</div></td>' +
         '<td class="num-cell">' + g.count.toLocaleString() + '</td>' +
         '</tr>';
     }).join('');
