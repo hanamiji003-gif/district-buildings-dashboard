@@ -330,6 +330,32 @@
     text-decoration: none; white-space: nowrap;
   }
   .gallery-more-btn:hover { opacity: 0.9; }
+
+  .view-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .view-tab-btn {
+    flex: 1; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--surface-1); color: var(--text-secondary); font-size: 13px; font-weight: 600;
+    cursor: pointer;
+  }
+  .view-tab-btn.active { background: var(--series-1); color: #fff; border-color: var(--series-1); }
+  @media (max-width: 620px) { .view-tabs { gap: 6px; } .view-tab-btn { padding: 9px 8px; font-size: 12px; } }
+
+  #mapContainer {
+    height: 560px; width: 100%; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--page-plane);
+  }
+  @media (max-width: 620px) { #mapContainer { height: 420px; } }
+  .map-legend { display: flex; flex-wrap: wrap; gap: 10px 16px; margin-bottom: 10px; font-size: 11.5px; color: var(--text-secondary); }
+  .map-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+  .map-legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; border: 1px solid rgba(0,0,0,0.15); }
+  .map-status-row {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+    margin-top: 10px; font-size: 12px; color: var(--text-secondary);
+  }
+  .map-skipped-note { color: var(--text-muted); }
+  .map-popup { font-size: 12.5px; line-height: 1.6; min-width: 200px; }
+  .map-popup b { display: block; font-size: 13.5px; margin-bottom: 4px; }
+  .map-popup .cond-tag { font-size: 11px; }
   .building-gallery {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px;
   }
@@ -356,6 +382,11 @@
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
 </head>
 <body>
 <div class="viz-root">
@@ -372,6 +403,11 @@
     <div class="load-status" id="loadStatus">
       <span id="loadStatusText">⏳ กำลังโหลดข้อมูลล่าสุดจาก Google Sheets…</span>
       <button class="load-refresh-btn" id="refreshBtn" type="button" style="display:none;">🔄 รีเฟรชข้อมูล</button>
+    </div>
+
+    <div class="view-tabs" id="viewTabs">
+      <button class="view-tab-btn active" id="tabBtnOverview" type="button">📊 ภาพรวมข้อมูล</button>
+      <button class="view-tab-btn" id="tabBtnMap" type="button">🗺️ แผนที่</button>
     </div>
 
     <div class="card building-gallery-card">
@@ -530,6 +566,44 @@
     <footer id="footerText">เชื่อมต่อข้อมูลสดจาก Google Sheets · จัดทำโดย Claude</footer>
 
     </div><!-- /#dashboardBody -->
+
+    <div id="mapBody" style="display:none;">
+      <div class="card">
+        <h2>แผนที่ตำแหน่งอาคาร</h2>
+        <p class="card-sub">หมุดแสดงตำแหน่งอาคารแต่ละหลังที่มีพิกัดในระบบ · คลิกหมุดเพื่อดูรายละเอียด</p>
+
+        <div class="filter-bar">
+          <div class="filter-field">
+            <label for="mfProvince">จังหวัด</label>
+            <select id="mfProvince"><option value="">ทั้งหมด</option></select>
+          </div>
+          <div class="filter-field">
+            <label for="mfAmphoe">อำเภอ</label>
+            <select id="mfAmphoe"><option value="">ทั้งหมด</option></select>
+          </div>
+          <div class="filter-field grow">
+            <label>สภาพการใช้งาน</label>
+            <div class="chip-group" id="mCondChips"></div>
+          </div>
+          <button class="filter-reset" id="mfReset">ล้างตัวกรอง</button>
+        </div>
+        <div class="filter-bar" style="border-bottom:none; margin-bottom:8px; padding-bottom:0;">
+          <div class="filter-field grow">
+            <label>ประเภทอาคาร</label>
+            <div class="chip-group" id="mCatChips"></div>
+          </div>
+        </div>
+
+        <div class="map-legend" id="mapLegend"></div>
+
+        <div id="mapContainer"></div>
+
+        <div class="map-status-row">
+          <span id="mapResultCount"></span>
+          <span id="mapSkippedNote" class="map-skipped-note"></span>
+        </div>
+      </div>
+    </div>
 
   </div>
 </div>
@@ -1030,13 +1104,277 @@ function initDetailExplorer(DETAIL) {
 }
 
 // ============================================================
+// View tabs — overview vs map. Wired up independently of data
+// load so switching tabs works even while data is still loading.
+// ============================================================
+window.__activeTab = 'overview';
+window.__dataReady = false;
+function applyTabVisibility() {
+  var isMap = window.__activeTab === 'map';
+  document.getElementById('tabBtnOverview').classList.toggle('active', !isMap);
+  document.getElementById('tabBtnMap').classList.toggle('active', isMap);
+  document.getElementById('dashboardBody').style.display = (!isMap && window.__dataReady) ? '' : 'none';
+  document.getElementById('mapBody').style.display = (isMap && window.__dataReady) ? '' : 'none';
+  if (isMap && window.__leafletMap) {
+    setTimeout(function () { window.__leafletMap.invalidateSize(); }, 50);
+  }
+}
+(function () {
+  try {
+    document.getElementById('tabBtnOverview').addEventListener('click', function () { window.__activeTab = 'overview'; applyTabVisibility(); });
+    document.getElementById('tabBtnMap').addEventListener('click', function () { window.__activeTab = 'map'; applyTabVisibility(); });
+  } catch (e) { console.error('tab init failed', e); }
+})();
+
+// ============================================================
+// Coordinate parsing — the "พิกัด" column in the sheet is
+// hand-typed by ~900 different survey respondents, so formats
+// vary a lot: plain "lat,lng", "lat/lng", swapped lat/lng, Thai
+// words ("ละติจูด...ลองจิจูด..."), DMS ("13°55'14\"N 99°45'56\"E"),
+// and some that are simply unrecoverable garbage. This parser
+// recovers everything it safely can and returns null otherwise —
+// null coordinates are counted and reported, never guessed at.
+// ============================================================
+var TH_LAT_MIN = 5.0, TH_LAT_MAX = 21.0, TH_LNG_MIN = 96.0, TH_LNG_MAX = 106.0;
+var COORD_NODATA = { '-': 1, 'ไม่มี': 1, 'ไม่ทราบ': 1, 'n/a': 1, 'na': 1, 'none': 1, '.': 1, '..': 1, '...': 1 };
+function inThailand(lat, lng) {
+  return lat >= TH_LAT_MIN && lat <= TH_LAT_MAX && lng >= TH_LNG_MIN && lng <= TH_LNG_MAX;
+}
+function parseCoordForMap(raw) {
+  if (!raw) return null;
+  var s = raw.trim();
+  if (!s || COORD_NODATA[s.toLowerCase()]) return null;
+
+  // Thai-labeled: "ละติจูด 14.60 ลองจิจูด/ลองติจูด/ลองละติจูด 99.11"
+  var m = s.match(/ละติจูด\s*([\d.]+)[\s\S]*?ลอง(?:ละ)?[จตง]?ิจูด\s*([\d.]+)/);
+  if (m) {
+    var lat1 = parseFloat(m[1]), lng1 = parseFloat(m[2]);
+    if (inThailand(lat1, lng1)) return { lat: lat1, lng: lng1 };
+  }
+
+  // DMS: 13°55'14.8"N 99°45'56.4"E (straight or curly quotes)
+  var dmsRe = /(\d+)[°d]\s*(\d+)['m′]\s*([\d.]+)["s″]?\s*([NSEW])/gi;
+  var dmsMatches = [], dm;
+  while ((dm = dmsRe.exec(s)) !== null) dmsMatches.push(dm);
+  if (dmsMatches.length === 2) {
+    var vals = {};
+    for (var i = 0; i < 2; i++) {
+      var deg = parseFloat(dmsMatches[i][1]), min = parseFloat(dmsMatches[i][2]), sec = parseFloat(dmsMatches[i][3]);
+      var hemi = dmsMatches[i][4].toUpperCase();
+      var val = deg + min / 60 + sec / 3600;
+      if (hemi === 'S' || hemi === 'W') val = -val;
+      if (hemi === 'N' || hemi === 'S') vals.lat = val; else vals.lng = val;
+    }
+    if (vals.lat !== undefined && vals.lng !== undefined && inThailand(vals.lat, vals.lng)) return vals;
+  }
+
+  // decimal with N/E suffix: "16.28N 99.53E"
+  var neM = s.match(/([\d.]+)\s*N\s*[, ]?\s*([\d.]+)\s*E/i);
+  if (neM) {
+    var latN = parseFloat(neM[1]), lngE = parseFloat(neM[2]);
+    if (inThailand(latN, lngE)) return { lat: latN, lng: lngE };
+  }
+
+  // plain decimal pair, separator is comma/slash/whitespace; auto-fix swapped lat/lng
+  var s2 = s.replace(/\s+/g, ' ');
+  var parts = s2.split(/[,/]/);
+  if (parts.length !== 2) parts = s2.split(' ');
+  if (parts.length === 2) {
+    var a = parseFloat(parts[0]), b = parseFloat(parts[1]);
+    if (!isNaN(a) && !isNaN(b)) {
+      if (inThailand(a, b)) return { lat: a, lng: b };
+      if (inThailand(b, a)) return { lat: b, lng: a };
+    }
+  }
+  return null; // UTM grid refs and other garbled entries are intentionally not guessed at
+}
+
+// ============================================================
+// Map tab — Leaflet map with clustered markers, filterable by
+// the same province/amphoe/category/condition dimensions as the
+// detail explorer. Built once; subsequent Sheet refreshes just
+// rebuild the marker set rather than recreating the map.
+// ============================================================
+var MAP_CATEGORY_COLORS = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--series-4)', 'var(--series-5)', 'var(--series-6)', 'var(--series-7)'];
+var MAP_COND_CLASS = { 'ใช้การได้ดี': 'good', 'พอใช้การได้': 'warning', 'ชำรุดทรุดโทรม': 'serious', 'ใช้การไม่ได้': 'critical' };
+
+function mapEscapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function buildMapPopup(r) {
+  var condHtml = r.condition ? '<span class="cond-tag ' + (MAP_COND_CLASS[r.condition] || '') + '">' + mapEscapeHtml(r.condition) + '</span>' : '-';
+  var mapsUrl = r._lat !== undefined ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(r._lat + ',' + r._lng) : '';
+  return '<div class="map-popup">' +
+    '<b>' + mapEscapeHtml(r.category) + ' (หลังที่ ' + mapEscapeHtml(r.instance) + ')</b>' +
+    mapEscapeHtml(r.amphoe) + ' จังหวัด' + mapEscapeHtml(r.province) + '<br>' +
+    (r.type ? 'ลักษณะโครงสร้าง: ' + mapEscapeHtml(r.type) + '<br>' : '') +
+    (r.year ? 'ปีที่ก่อสร้าง: ' + mapEscapeHtml(r.year) + '<br>' : '') +
+    'สภาพการใช้งาน: ' + condHtml + '<br>' +
+    (r.land ? 'ประเภทที่ดิน: ' + mapEscapeHtml(r.land) + '<br>' : '') +
+    (r.address ? 'รหัสไปรษณีย์/ที่อยู่: ' + mapEscapeHtml(r.address) + '<br>' : '') +
+    (mapsUrl ? '<a href="' + mapEscapeHtml(mapsUrl) + '" target="_blank" rel="noopener noreferrer">เปิดใน Google Maps ↗</a>' : '') +
+    '</div>';
+}
+
+function initMapTab(DETAIL) {
+  try {
+    if (typeof L === 'undefined') {
+      document.getElementById('mapResultCount').textContent = 'ไม่สามารถโหลดไลบรารีแผนที่ได้ (ต้องมีอินเทอร์เน็ตเชื่อมต่อ)';
+      return;
+    }
+
+    // build/reuse the underlying Leaflet map instance (created once)
+    if (!window.__leafletMap) {
+      var mapInstance = L.map('mapContainer', { scrollWheelZoom: true }).setView([13.7563, 100.5018], 6);
+      var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(mapInstance);
+      var satLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19, attribution: 'Tiles &copy; Esri'
+      });
+      L.control.layers({ 'แผนที่ปกติ': osmLayer, 'ภาพถ่ายดาวเทียม': satLayer }).addTo(mapInstance);
+      window.__leafletMap = mapInstance;
+      window.__leafletCluster = L.markerClusterGroup({ maxClusterRadius: 50 }).addTo(mapInstance);
+    } else {
+      window.__leafletCluster.clearLayers();
+    }
+
+    // parse coordinates once per record, cache on the record itself
+    var withCoords = [];
+    var skippedCount = 0;
+    DETAIL.records.forEach(function (r) {
+      var c = parseCoordForMap(r.coord);
+      if (c) {
+        r._lat = c.lat; r._lng = c.lng;
+        withCoords.push(r);
+      } else {
+        skippedCount++;
+      }
+    });
+    window.__mapAllRecords = withCoords;
+    window.__mapSkippedCount = skippedCount;
+    window.__mapDetail = DETAIL;
+
+    // legend
+    var legend = document.getElementById('mapLegend');
+    legend.innerHTML = DETAIL.categories.map(function (cat, i) {
+      return '<span class="map-legend-item"><span class="map-legend-dot" style="background:' + MAP_CATEGORY_COLORS[i % MAP_CATEGORY_COLORS.length] + '"></span>' + mapEscapeHtml(cat) + '</span>';
+    }).join('');
+
+    // filters (independent from the detail-explorer tab's filters)
+    var mState = { province: '', amphoe: '', cats: new Set(DETAIL.categories), conds: new Set(DETAIL.conditions) };
+    var provSel = document.getElementById('mfProvince');
+    var ampSel = document.getElementById('mfAmphoe');
+    var catChipsEl = document.getElementById('mCatChips');
+    var condChipsEl = document.getElementById('mCondChips');
+    var resetBtn = document.getElementById('mfReset');
+
+    provSel.innerHTML = '<option value="">ทั้งหมด</option>';
+    DETAIL.provinces.forEach(function (p) {
+      var o = document.createElement('option'); o.value = p; o.textContent = p; provSel.appendChild(o);
+    });
+    ampSel.innerHTML = '<option value="">ทั้งหมด</option>';
+
+    function buildChips(container, values, activeSet, onChange) {
+      container.innerHTML = '';
+      values.forEach(function (v) {
+        var chip = document.createElement('div');
+        chip.className = 'chip' + (activeSet.has(v) ? ' active' : '');
+        chip.textContent = v;
+        chip.addEventListener('click', function () {
+          if (activeSet.has(v)) activeSet.delete(v); else activeSet.add(v);
+          chip.classList.toggle('active');
+          onChange();
+        });
+        container.appendChild(chip);
+      });
+    }
+    buildChips(catChipsEl, DETAIL.categories, mState.cats, renderMapMarkers);
+    buildChips(condChipsEl, DETAIL.conditions, mState.conds, renderMapMarkers);
+
+    function refreshAmphoeOptions() {
+      var list = mState.province ? (DETAIL.amphoeByProvName[mState.province] || []) : [];
+      ampSel.innerHTML = '<option value="">ทั้งหมด</option>';
+      list.forEach(function (a) {
+        var o = document.createElement('option'); o.value = a; o.textContent = a; ampSel.appendChild(o);
+      });
+    }
+    provSel.addEventListener('change', function () {
+      mState.province = provSel.value; mState.amphoe = '';
+      refreshAmphoeOptions(); renderMapMarkers();
+    });
+    ampSel.addEventListener('change', function () { mState.amphoe = ampSel.value; renderMapMarkers(); });
+    resetBtn.addEventListener('click', function () {
+      mState.province = ''; mState.amphoe = '';
+      mState.cats = new Set(DETAIL.categories); mState.conds = new Set(DETAIL.conditions);
+      provSel.value = ''; refreshAmphoeOptions();
+      buildChips(catChipsEl, DETAIL.categories, mState.cats, renderMapMarkers);
+      buildChips(condChipsEl, DETAIL.conditions, mState.conds, renderMapMarkers);
+      renderMapMarkers();
+    });
+
+    window.__mapState = mState;
+    renderMapMarkers();
+  } catch (e) {
+    console.error('map tab init failed', e);
+    var el = document.getElementById('mapResultCount');
+    if (el) el.textContent = 'เกิดข้อผิดพลาดในการโหลดแผนที่ กรุณาลองเปิดไฟล์นี้ในเบราว์เซอร์อื่น';
+  }
+}
+
+function renderMapMarkers() {
+  try {
+    var cluster = window.__leafletCluster;
+    var records = window.__mapAllRecords || [];
+    var state = window.__mapState;
+    var categories = window.__mapDetail.categories;
+    if (!cluster || !state) return;
+    cluster.clearLayers();
+
+    var rows = records.filter(function (r) {
+      if (state.province && r.province !== state.province) return false;
+      if (state.amphoe && r.amphoe !== state.amphoe) return false;
+      if (!state.cats.has(r.category)) return false;
+      if (r.condition && !state.conds.has(r.condition)) return false;
+      if (!r.condition && state.conds.size !== window.__mapDetail.conditions.length) return false;
+      return true;
+    });
+
+    var markers = rows.map(function (r) {
+      var colorIdx = categories.indexOf(r.category);
+      var color = MAP_CATEGORY_COLORS[colorIdx >= 0 ? colorIdx % MAP_CATEGORY_COLORS.length : 0];
+      var icon = L.divIcon({
+        className: 'map-marker-icon',
+        html: '<span style="display:block;width:14px;height:14px;border-radius:50%;background:' + color + ';border:2px solid #fff;box-shadow:0 0 2px rgba(0,0,0,0.5);"></span>',
+        iconSize: [14, 14], iconAnchor: [7, 7]
+      });
+      var marker = L.marker([r._lat, r._lng], { icon: icon });
+      marker.bindPopup(buildMapPopup(r));
+      return marker;
+    });
+    cluster.addLayers(markers);
+
+    var totalMatchingBeforeCoordFilter = markers.length + 0; // rows already coord-filtered upstream
+    var resultEl = document.getElementById('mapResultCount');
+    if (resultEl) resultEl.textContent = 'แสดง ' + rows.length.toLocaleString() + ' หมุดบนแผนที่';
+    var skipEl = document.getElementById('mapSkippedNote');
+    if (skipEl) {
+      var sk = window.__mapSkippedCount || 0;
+      skipEl.textContent = sk > 0 ? sk.toLocaleString() + ' รายการทั้งหมดไม่มีพิกัดที่ใช้งานได้ จึงไม่แสดงบนแผนที่' : '';
+    }
+  } catch (e) {
+    console.error('render map markers failed', e);
+  }
+}
+
+// ============================================================
 // Load orchestration — fetch CSV, build DATA/DETAIL, render.
 // ============================================================
 function loadData() {
   var statusEl = document.getElementById('loadStatus');
   var statusText = document.getElementById('loadStatusText');
   var refreshBtn = document.getElementById('refreshBtn');
-  var body = document.getElementById('dashboardBody');
 
   statusEl.className = 'load-status';
   statusText.textContent = '⏳ กำลังโหลดข้อมูลล่าสุดจาก Google Sheets…';
@@ -1058,7 +1396,9 @@ function loadData() {
         var built = processRows(results.data);
         renderOverview(built.DATA);
         initDetailExplorer(built.DETAIL);
-        body.style.display = '';
+        initMapTab(built.DETAIL);
+        window.__dataReady = true;
+        applyTabVisibility();
         statusEl.className = 'load-status ok';
         var now = new Date();
         statusText.textContent = '✅ ข้อมูลล่าสุด ณ ' + now.toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }) + ' · ' + built.DATA.total_records.toLocaleString() + ' อำเภอ';
