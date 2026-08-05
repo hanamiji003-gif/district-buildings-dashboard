@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -356,6 +356,24 @@
   .map-popup { font-size: 12.5px; line-height: 1.6; min-width: 200px; }
   .map-popup b { display: block; font-size: 13.5px; margin-bottom: 4px; }
   .map-popup .cond-tag { font-size: 11px; }
+
+  .map-summary-card { margin-top: 14px; }
+  .map-summary-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .map-summary-head h3 { font-size: 13.5px; margin: 0; }
+  .map-summary-head .msh-sub { font-size: 11.5px; color: var(--text-muted); }
+  .map-summary-wrap { overflow-x: auto; max-height: 300px; overflow-y: auto; border: 1px solid var(--gridline); border-radius: 8px; }
+  #mapSummaryTable { width: 100%; border-collapse: collapse; font-size: 12px; }
+  #mapSummaryTable thead th {
+    position: sticky; top: 0; text-align: left; color: #fff; background: var(--series-1);
+    padding: 7px 10px; font-weight: 700; z-index: 1; white-space: nowrap;
+  }
+  #mapSummaryTable td { padding: 6px 10px; border-bottom: 1px solid var(--gridline); color: var(--text-primary); }
+  #mapSummaryTable td.num-cell { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  #mapSummaryTable tbody tr.map-summary-row { cursor: pointer; }
+  #mapSummaryTable tbody tr.map-summary-row:hover { background: var(--page-plane); }
+  #mapSummaryTable tbody tr.map-summary-row:active { background: var(--border); }
+  .map-summary-loc { display: inline-flex; align-items: center; gap: 5px; }
+  .map-summary-loc .msl-pin { opacity: 0.65; }
   .building-gallery {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px;
   }
@@ -417,27 +435,27 @@
       </div>
       <div class="building-gallery">
         <figure class="building-gallery-item">
-          <img loading="lazy" src="https://lh3.googleusercontent.com/d/1f4h1fpHGgO0wDHnZWBIwo3GkL39xvrTW=w800" alt="ตัวอย่างอาคารที่ว่าการอำเภอ" onerror="this.closest('figure').classList.add('img-broken')">
+          <img loading="lazy" src="https://drive.google.com/thumbnail?id=1f4h1fpHGgO0wDHnZWBIwo3GkL39xvrTW&sz=w1000" data-fallback="https://lh3.googleusercontent.com/d/1f4h1fpHGgO0wDHnZWBIwo3GkL39xvrTW=w800" alt="ตัวอย่างอาคารที่ว่าการอำเภอ" onerror="galleryImgFallback(this)">
           <figcaption>อาคารที่ว่าการอำเภอ</figcaption>
         </figure>
         <figure class="building-gallery-item">
-          <img loading="lazy" src="https://lh3.googleusercontent.com/d/1VJ7WLeQIfsG9PrpkcY_k1VB1SAxUGaUD=w800" alt="ตัวอย่างหอประชุมอำเภอ" onerror="this.closest('figure').classList.add('img-broken')">
+          <img loading="lazy" src="https://drive.google.com/thumbnail?id=1VJ7WLeQIfsG9PrpkcY_k1VB1SAxUGaUD&sz=w1000" data-fallback="https://lh3.googleusercontent.com/d/1VJ7WLeQIfsG9PrpkcY_k1VB1SAxUGaUD=w800" alt="ตัวอย่างหอประชุมอำเภอ" onerror="galleryImgFallback(this)">
           <figcaption>หอประชุมอำเภอ</figcaption>
         </figure>
         <figure class="building-gallery-item">
-          <img loading="lazy" src="https://lh3.googleusercontent.com/d/1wpdHCW6SYpHaVmBJt7uSHVLHAcAMwea6=w800" alt="ตัวอย่างบ้านพักข้าราชการ ระดับ 9" onerror="this.closest('figure').classList.add('img-broken')">
+          <img loading="lazy" src="https://drive.google.com/thumbnail?id=1wpdHCW6SYpHaVmBJt7uSHVLHAcAMwea6&sz=w1000" data-fallback="https://lh3.googleusercontent.com/d/1wpdHCW6SYpHaVmBJt7uSHVLHAcAMwea6=w800" alt="ตัวอย่างบ้านพักข้าราชการ ระดับ 9" onerror="galleryImgFallback(this)">
           <figcaption>บ้านพักข้าราชการ ระดับ 9</figcaption>
         </figure>
         <figure class="building-gallery-item">
-          <img loading="lazy" src="https://lh3.googleusercontent.com/d/1VQ8cammA4tkg3NBQnV9DqZ-9hBqazhhs=w800" alt="ตัวอย่างบ้านพักข้าราชการ ระดับ 7-8" onerror="this.closest('figure').classList.add('img-broken')">
+          <img loading="lazy" src="https://drive.google.com/thumbnail?id=1VQ8cammA4tkg3NBQnV9DqZ-9hBqazhhs&sz=w1000" data-fallback="https://lh3.googleusercontent.com/d/1VQ8cammA4tkg3NBQnV9DqZ-9hBqazhhs=w800" alt="ตัวอย่างบ้านพักข้าราชการ ระดับ 7-8" onerror="galleryImgFallback(this)">
           <figcaption>บ้านพักข้าราชการ ระดับ 7-8</figcaption>
         </figure>
         <figure class="building-gallery-item">
-          <img loading="lazy" src="https://lh3.googleusercontent.com/d/1Az9uVMdzflFJ3Vh69UkIEZMTVz0eeqye=w800" alt="ตัวอย่างบ้านพักข้าราชการ ระดับ 3-6" onerror="this.closest('figure').classList.add('img-broken')">
+          <img loading="lazy" src="https://drive.google.com/thumbnail?id=1Az9uVMdzflFJ3Vh69UkIEZMTVz0eeqye&sz=w1000" data-fallback="https://lh3.googleusercontent.com/d/1Az9uVMdzflFJ3Vh69UkIEZMTVz0eeqye=w800" alt="ตัวอย่างบ้านพักข้าราชการ ระดับ 3-6" onerror="galleryImgFallback(this)">
           <figcaption>บ้านพักข้าราชการ ระดับ 3-6</figcaption>
         </figure>
         <figure class="building-gallery-item">
-          <img loading="lazy" src="https://lh3.googleusercontent.com/d/1AoyA9sm9lS9Twk7-HVwvDOAiTvqReAHo=w800" alt="ตัวอย่างบ้านพักข้าราชการ ระดับ 1-2" onerror="this.closest('figure').classList.add('img-broken')">
+          <img loading="lazy" src="https://drive.google.com/thumbnail?id=1AoyA9sm9lS9Twk7-HVwvDOAiTvqReAHo&sz=w1000" data-fallback="https://lh3.googleusercontent.com/d/1AoyA9sm9lS9Twk7-HVwvDOAiTvqReAHo=w800" alt="ตัวอย่างบ้านพักข้าราชการ ระดับ 1-2" onerror="galleryImgFallback(this)">
           <figcaption>บ้านพักข้าราชการ ระดับ 1-2</figcaption>
         </figure>
       </div>
@@ -602,6 +620,25 @@
           <span id="mapResultCount"></span>
           <span id="mapSkippedNote" class="map-skipped-note"></span>
         </div>
+
+        <div class="map-summary-card">
+          <div class="map-summary-head">
+            <h3>สรุปตามตัวกรองปัจจุบัน (แยกตามอำเภอ)</h3>
+            <span class="msh-sub">คลิกแถวเพื่อซูมไปยังตำแหน่งบนแผนที่</span>
+          </div>
+          <div class="map-summary-wrap">
+            <table id="mapSummaryTable">
+              <thead>
+                <tr>
+                  <th>จังหวัด</th>
+                  <th>อำเภอ</th>
+                  <th>จำนวนหมุด</th>
+                </tr>
+              </thead>
+              <tbody id="mapSummaryBody"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -628,6 +665,23 @@
     });
   } catch (e) { console.error('theme toggle init failed', e); }
 })();
+
+// ============================================================
+// Gallery image fallback — tries the backup Google Drive hotlink
+// pattern once before showing the "ไม่สามารถโหลดรูปได้" placeholder.
+// ============================================================
+function galleryImgFallback(img) {
+  try {
+    var fallback = img.getAttribute('data-fallback');
+    if (fallback && img.src !== fallback && !img.getAttribute('data-tried-fallback')) {
+      img.setAttribute('data-tried-fallback', '1');
+      img.src = fallback;
+    } else {
+      var fig = img.closest('figure');
+      if (fig) fig.classList.add('img-broken');
+    }
+  } catch (e) { console.error('galleryImgFallback failed', e); }
+}
 
 // ============================================================
 // Tooltip helper (shared)
@@ -1363,8 +1417,70 @@ function renderMapMarkers() {
       var sk = window.__mapSkippedCount || 0;
       skipEl.textContent = sk > 0 ? sk.toLocaleString() + ' รายการทั้งหมดไม่มีพิกัดที่ใช้งานได้ จึงไม่แสดงบนแผนที่' : '';
     }
+
+    renderMapSummaryTable(rows);
   } catch (e) {
     console.error('render map markers failed', e);
+  }
+}
+
+// ============================================================
+// Map summary table — groups the currently-filtered records by
+// อำเภอ so the user can see "what & how many" at a glance, and
+// click a row to fly the map to that group's markers.
+// ============================================================
+function renderMapSummaryTable(rows) {
+  try {
+    var body = document.getElementById('mapSummaryBody');
+    if (!body) return;
+
+    var groups = {};
+    rows.forEach(function (r) {
+      var key = r.province + '|' + r.amphoe;
+      if (!groups[key]) groups[key] = { province: r.province, amphoe: r.amphoe, count: 0, lats: [], lngs: [] };
+      groups[key].count++;
+      groups[key].lats.push(r._lat);
+      groups[key].lngs.push(r._lng);
+    });
+    var groupList = Object.keys(groups).map(function (k) { return groups[k]; });
+    groupList.sort(function (a, b) { return b.count - a.count || a.province.localeCompare(b.province, 'th'); });
+
+    if (!groupList.length) {
+      body.innerHTML = '<tr><td colspan="3" class="empty-state">ไม่พบข้อมูลตามตัวกรองที่เลือก</td></tr>';
+      return;
+    }
+
+    body.innerHTML = groupList.map(function (g, idx) {
+      return '<tr class="map-summary-row" data-group-idx="' + idx + '" tabindex="0">' +
+        '<td>' + mapEscapeHtml(g.province) + '</td>' +
+        '<td><span class="map-summary-loc"><span class="msl-pin">📍</span>' + mapEscapeHtml(g.amphoe) + '</span></td>' +
+        '<td class="num-cell">' + g.count.toLocaleString() + '</td>' +
+        '</tr>';
+    }).join('');
+
+    function flyToGroup(idx) {
+      var g = groupList[idx];
+      if (!g || !window.__leafletMap) return;
+      var latlngs = g.lats.map(function (lat, i) { return [lat, g.lngs[i]]; });
+      var bounds = L.latLngBounds(latlngs);
+      if (window.__leafletMap.flyToBounds) {
+        window.__leafletMap.flyToBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+      } else {
+        window.__leafletMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+      }
+      var mapEl = document.getElementById('mapContainer');
+      if (mapEl && mapEl.scrollIntoView) mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    Array.prototype.forEach.call(body.querySelectorAll('.map-summary-row'), function (tr) {
+      var idx = parseInt(tr.getAttribute('data-group-idx'), 10);
+      tr.addEventListener('click', function () { flyToGroup(idx); });
+      tr.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flyToGroup(idx); }
+      });
+    });
+  } catch (e) {
+    console.error('render map summary table failed', e);
   }
 }
 
