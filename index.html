@@ -153,6 +153,7 @@
   .bar-meta b { color: var(--text-primary); font-weight: 700; }
 
   .note-line { font-size: 11.5px; color: var(--text-secondary); margin-top: 2px; grid-column: 2 / span 2; }
+  .note-line.no-detail { color: var(--text-muted); }
 
   table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
   thead th {
@@ -165,6 +166,7 @@
   tbody tr:last-child td { border-bottom: none; }
   tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
   tbody td.note { color: var(--text-secondary); font-size: 11.5px; }
+  tbody td .tbl-sub { color: var(--text-muted); font-size: 10.5px; margin-top: 2px; font-weight: 400; }
   tbody tr:hover { background: var(--page-plane); }
 
   /* Condition stacked bars */
@@ -488,7 +490,7 @@
 
     <div class="card">
       <h2>จำนวนอาคารแต่ละประเภท (มี / ไม่มี)</h2>
-      <p class="card-sub">นับจากจำนวนอำเภอที่ตอบแบบสำรวจ <span id="recCountText">…</span> รายการ · หมายเหตุแสดงกรณีมีอาคารมากกว่า 1 / 2 / 3 หลัง</p>
+      <p class="card-sub">นับจากจำนวนอำเภอที่ตอบแบบสำรวจ <span id="recCountText">…</span> รายการ · แสดงจำนวนอาคารรวมทุกหลัง และจำนวนอำเภอ/ทปค.จ. ที่ไม่มีอาคารแต่ละประเภท</p>
       <div class="legend">
         <span class="legend-item"><span class="swatch" style="background:var(--series-1)"></span>มีอาคาร</span>
         <span class="legend-item"><span class="swatch" style="background:var(--absent)"></span>ไม่มีอาคาร</span>
@@ -498,13 +500,14 @@
 
     <div class="card">
       <h2>ตารางสรุป</h2>
-      <p class="card-sub">ประเภทอาคาร จำนวนที่มี/ไม่มี และหมายเหตุกรณีมีมากกว่า 1 หลังขึ้นไป</p>
+      <p class="card-sub">ประเภทอาคาร จำนวนที่มี/ไม่มี (แยกอำเภอ/ทปค.จ.) จำนวนอาคารรวมทุกหลัง และหมายเหตุกรณีมีมากกว่า 1 หลังขึ้นไป</p>
       <table id="summaryTable">
         <thead>
           <tr>
             <th>ประเภทอาคาร</th>
             <th style="text-align:right">มี (แห่ง)</th>
             <th style="text-align:right">ไม่มี (แห่ง)</th>
+            <th style="text-align:right">รวมอาคาร (หลัง)</th>
             <th style="text-align:right">% มี</th>
             <th>หมายเหตุ</th>
           </tr>
@@ -672,7 +675,7 @@
 // ============================================================
 // Theme toggle — attached FIRST and independently, so a failure
 // anywhere else in this script can never prevent it from working.
-// Now persists the user's explicit choice in localStorage, and
+// Persists the user's explicit choice in localStorage, and
 // (until the user picks a theme manually) live-follows the OS
 // light/dark setting.
 // ============================================================
@@ -866,7 +869,30 @@ function processRows(rows) {
       var c = counts.filter(function (n) { return n > L; }).length;
       if (c > 0) multi.push({ level: L, count: c });
     }
-    DATA.categories.push({ name: name, has: has, no: no, total: total, condition: cm.condition, material: cm.material, multi: multi });
+
+    // total physical buildings — sums every หลังที่ 1, 2, 3… per location,
+    // not just the number of locations that answered "มี"
+    var totalBuildings = counts.reduce(function (sum, n) { return sum + n; }, 0);
+
+    // split "มี" and "ไม่มี" into อำเภอ vs ทปค.จ. so the chart/table can
+    // report exactly how many of each type is missing this building
+    var noAmphoeCount = 0, noTpkCount = 0, hasAmphoeCount = 0, hasTpkCount = 0;
+    cm.noSet.forEach(function (key) {
+      var amphoeName = key.split('|')[1] || '';
+      if (amphoeName.indexOf('ทปค.จ.') === 0) noTpkCount++; else noAmphoeCount++;
+    });
+    cm.hasSet.forEach(function (key) {
+      var amphoeName = key.split('|')[1] || '';
+      if (amphoeName.indexOf('ทปค.จ.') === 0) hasTpkCount++; else hasAmphoeCount++;
+    });
+
+    DATA.categories.push({
+      name: name, has: has, no: no, total: total,
+      totalBuildings: totalBuildings,
+      noAmphoeCount: noAmphoeCount, noTpkCount: noTpkCount,
+      hasAmphoeCount: hasAmphoeCount, hasTpkCount: hasTpkCount,
+      condition: cm.condition, material: cm.material, multi: multi
+    });
   });
 
   var provinces = Array.from(provinceSet).sort(function (a, b) { return a.localeCompare(b, 'th'); });
@@ -934,14 +960,16 @@ function renderOverview(DATA) {
       var row = document.createElement('div');
       row.className = 'bar-row';
       var noteText = c.multi.length ? c.multi.map(function (m) { return 'มากกว่า ' + m.level + ' หลัง: ' + m.count + ' อำเภอ'; }).join(' · ') : '';
+      var tipText = c.name + ': มี ' + c.has + ' แห่ง (' + pct.toFixed(1) + '%) รวม ' + c.totalBuildings + ' หลัง · ไม่มี ' + c.no + ' แห่ง (อำเภอ ' + c.noAmphoeCount + ' · ทปค.จ. ' + c.noTpkCount + ')';
       row.innerHTML =
         '<div class="bar-label">' + c.name + '</div>' +
-        '<div class="bar-track" data-tip="' + c.name + ': มี ' + c.has + ' แห่ง (' + pct.toFixed(1) + '%), ไม่มี ' + c.no + ' แห่ง">' +
+        '<div class="bar-track" data-tip="' + tipText + '">' +
           '<div class="bar-seg has" style="width:' + pct + '%"></div>' +
           '<div class="bar-seg no" style="width:' + (100 - pct) + '%"></div>' +
         '</div>' +
         '<div class="bar-meta"><b>' + c.has + '</b> / ' + c.total + ' (' + pct.toFixed(1) + '%)</div>' +
-        (noteText ? '<div class="note-line">หมายเหตุ: ' + noteText + '</div>' : '');
+        '<div class="note-line">รวมอาคารทั้งหมด <b>' + c.totalBuildings.toLocaleString() + '</b> หลัง' + (noteText ? ' · ' + noteText : '') + '</div>' +
+        '<div class="note-line no-detail">ไม่มีอาคาร <b>' + c.no.toLocaleString() + '</b> แห่ง (อำเภอ ' + c.noAmphoeCount.toLocaleString() + ' · ทปค.จ. ' + c.noTpkCount.toLocaleString() + ')</div>';
       presenceChart.appendChild(row);
     });
 
@@ -949,8 +977,14 @@ function renderOverview(DATA) {
     DATA.categories.forEach(function (c) {
       var pct = c.total ? (c.has / c.total * 100).toFixed(1) : '0.0';
       var note = c.multi.length ? c.multi.map(function (m) { return 'มากกว่า ' + m.level + ' หลัง: ' + m.count + ' อำเภอ'; }).join(' | ') : 'ไม่มีการสำรวจอาคารหลังที่ 2 ขึ้นไป';
+      var noDetail = 'อำเภอ ' + c.noAmphoeCount.toLocaleString() + ' · ทปค.จ. ' + c.noTpkCount.toLocaleString();
       var tr = document.createElement('tr');
-      tr.innerHTML = '<td>' + c.name + '</td><td class="num">' + c.has + '</td><td class="num">' + c.no + '</td><td class="num">' + pct + '%</td><td class="note">' + note + '</td>';
+      tr.innerHTML = '<td>' + c.name + '</td>' +
+        '<td class="num">' + c.has + '</td>' +
+        '<td class="num">' + c.no + '<div class="tbl-sub">' + noDetail + '</div></td>' +
+        '<td class="num">' + c.totalBuildings.toLocaleString() + '</td>' +
+        '<td class="num">' + pct + '%</td>' +
+        '<td class="note">' + note + '</td>';
       tbody.appendChild(tr);
     });
 
