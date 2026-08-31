@@ -1,9 +1,23 @@
 <!DOCTYPE html>
-<html lang="th" data-theme="light">
+<html lang="th">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="color-scheme" content="light" id="colorSchemeMeta">
+<meta name="color-scheme" content="light dark" id="colorSchemeMeta">
+<script>
+// Apply any previously-saved theme choice as early as possible so the
+// page never "flashes" the wrong theme before the main script runs.
+(function () {
+  try {
+    var saved = localStorage.getItem('dashboardTheme');
+    if (saved === 'dark' || saved === 'light') {
+      document.documentElement.setAttribute('data-theme', saved);
+    }
+    // if nothing saved yet, leave the attribute unset so the
+    // prefers-color-scheme media query below controls it automatically
+  } catch (e) {}
+})();
+</script>
 <title>สรุปจำนวนอาคารที่ว่าการอำเภอ หอประชุมอำเภอ อาคารที่พักอาศัย ค.ส.ล. และบ้านพักข้าราชการทุกระดับ</title>
 <style>
   :root, .viz-root {
@@ -227,7 +241,6 @@
     font-size: 11.5px; padding: 6px 9px; border-radius: 6px; opacity: 0; transition: opacity .1s;
     max-width: 240px;
   }
-  [data-theme="dark"] .tooltip, @media (prefers-color-scheme: dark) { }
 
   /* ---- Filter / detail explorer ---- */
   .filter-bar {
@@ -254,6 +267,7 @@
     background: var(--page-plane); color: var(--text-secondary); cursor: pointer; user-select: none;
   }
   .chip.active { background: var(--series-1); color: #fff; border-color: var(--series-1); }
+  .chip:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
 
   .profile-banner {
     display: none; margin-bottom: 16px; padding: 14px 16px; border-radius: 10px;
@@ -373,6 +387,7 @@
   #mapSummaryTable tbody tr.map-summary-row { cursor: pointer; }
   #mapSummaryTable tbody tr.map-summary-row:hover { background: var(--page-plane); }
   #mapSummaryTable tbody tr.map-summary-row:active { background: var(--border); }
+  #mapSummaryTable tbody tr.map-summary-row:focus-visible { outline: 2px solid var(--series-1); outline-offset: -2px; }
   .map-summary-loc { display: inline-flex; align-items: center; gap: 5px; }
   .map-summary-loc .msl-pin { opacity: 0.65; }
   .map-summary-badges { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -657,20 +672,47 @@
 // ============================================================
 // Theme toggle — attached FIRST and independently, so a failure
 // anywhere else in this script can never prevent it from working.
+// Now persists the user's explicit choice in localStorage, and
+// (until the user picks a theme manually) live-follows the OS
+// light/dark setting.
 // ============================================================
 (function () {
   try {
     var toggle = document.getElementById('themeToggle');
     var schemeMeta = document.getElementById('colorSchemeMeta');
-    var manual = null;
+    var STORAGE_KEY = 'dashboardTheme';
+    var mql = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+    function systemPrefersDark() { return !!(mql && mql.matches); }
+    function hasExplicitChoice() {
+      try { return !!localStorage.getItem(STORAGE_KEY); } catch (e) { return false; }
+    }
+    function effectiveTheme() {
+      var attr = document.documentElement.getAttribute('data-theme');
+      if (attr === 'dark' || attr === 'light') return attr;
+      return systemPrefersDark() ? 'dark' : 'light';
+    }
+    function syncUI() {
+      var t = effectiveTheme();
+      toggle.textContent = t === 'dark' ? 'โหมดสว่าง' : 'โหมดมืด';
+      if (schemeMeta) schemeMeta.setAttribute('content', t);
+    }
+
+    syncUI();
+
+    // keep following the OS setting live, but only until the user
+    // makes an explicit choice via the toggle button
+    if (mql && mql.addEventListener) {
+      mql.addEventListener('change', function () {
+        if (!hasExplicitChoice()) syncUI();
+      });
+    }
+
     toggle.addEventListener('click', function () {
-      var root = document.documentElement;
-      if (manual === 'dark') {
-        manual = 'light'; root.setAttribute('data-theme', 'light'); toggle.textContent = 'โหมดมืด';
-      } else {
-        manual = 'dark'; root.setAttribute('data-theme', 'dark'); toggle.textContent = 'โหมดสว่าง';
-      }
-      if (schemeMeta) schemeMeta.setAttribute('content', manual);
+      var next = effectiveTheme() === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      try { localStorage.setItem(STORAGE_KEY, next); } catch (e) {}
+      syncUI();
     });
   } catch (e) { console.error('theme toggle init failed', e); }
 })();
@@ -752,6 +794,11 @@ function processRows(rows) {
   var locSet = new Set();
   var tpkSet = new Set();
   var realAmphoeSet = new Set();
+  // rows whose "ประเภทอาคาร" text doesn't match any known category name
+  // (typos / extra spelling variants in the sheet) are skipped defensively —
+  // tracked here so the mismatch is surfaced instead of silently vanishing.
+  var skippedCategoryCount = 0;
+  var skippedCategoryNames = new Set();
 
   rows.forEach(function (r) {
     var province = (r['จังหวัด'] || '').trim();
@@ -768,7 +815,11 @@ function processRows(rows) {
     var address = (r['ที่อยู่'] || '').trim();
 
     var cm = catMap[category];
-    if (!cm) return; // unrecognized category name in the sheet — skip defensively
+    if (!cm) {
+      skippedCategoryCount++;
+      skippedCategoryNames.add(category);
+      return; // unrecognized category name in the sheet — skip defensively
+    }
 
     var key = province + '|' + amphoe;
     provinceSet.add(province);
@@ -801,7 +852,9 @@ function processRows(rows) {
 
   var DATA = {
     categories: [], total_records: locSet.size, provinces: provinceSet.size,
-    amphoe_count: realAmphoeSet.size, tpk_count: tpkSet.size
+    amphoe_count: realAmphoeSet.size, tpk_count: tpkSet.size,
+    skipped_category_count: skippedCategoryCount,
+    skipped_category_names: Array.from(skippedCategoryNames)
   };
   CATEGORY_ORDER.forEach(function (name) {
     var cm = catMap[name];
@@ -977,16 +1030,29 @@ function initDetailExplorer(DETAIL) {
       var o = document.createElement('option'); o.value = l; o.textContent = l; landSel.appendChild(o);
     });
 
+    // chips are keyboard-accessible: role="button" + tabindex so they can be
+    // reached with Tab, and Enter/Space toggles them just like a click would
     function buildChips(container, values, activeSet, onChange) {
       container.innerHTML = '';
       values.forEach(function (v) {
         var chip = document.createElement('div');
         chip.className = 'chip' + (activeSet.has(v) ? ' active' : '');
         chip.textContent = v;
-        chip.addEventListener('click', function () {
+        chip.setAttribute('role', 'button');
+        chip.setAttribute('tabindex', '0');
+        chip.setAttribute('aria-pressed', activeSet.has(v) ? 'true' : 'false');
+        function toggleChip() {
           if (activeSet.has(v)) activeSet.delete(v); else activeSet.add(v);
           chip.classList.toggle('active');
+          chip.setAttribute('aria-pressed', activeSet.has(v) ? 'true' : 'false');
           onChange();
+        }
+        chip.addEventListener('click', toggleChip);
+        chip.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+            e.preventDefault();
+            toggleChip();
+          }
         });
         container.appendChild(chip);
       });
@@ -1135,19 +1201,23 @@ function initDetailExplorer(DETAIL) {
       rows.slice(0, 2000).forEach(function (r) {
         var tr = document.createElement('tr');
         var cls = condClass[r.condition] || '';
-        var condHtml = r.condition ? '<span class="cond-tag ' + cls + '">' + r.condition + '</span>' : '-';
+        // every value below comes from freely-typed spreadsheet cells,
+        // so every one of them must be escaped before going into innerHTML
+        var condHtml = r.condition
+          ? '<span class="cond-tag ' + cls + '">' + escapeHtml(r.condition) + '</span>'
+          : '-';
         tr.innerHTML =
-          '<td>' + r.province + '</td>' +
-          '<td>' + r.amphoe + '</td>' +
-          '<td>' + r.category + '</td>' +
-          '<td>' + r.instance + '</td>' +
-          '<td class="wrap-cell">' + (r.type || '-') + '</td>' +
-          '<td>' + (r.year || '-') + '</td>' +
-          '<td>' + (r.age || '-') + '</td>' +
-          '<td class="wrap-cell">' + (r.land || '-') + '</td>' +
+          '<td>' + escapeHtml(r.province) + '</td>' +
+          '<td>' + escapeHtml(r.amphoe) + '</td>' +
+          '<td>' + escapeHtml(r.category) + '</td>' +
+          '<td>' + escapeHtml(r.instance) + '</td>' +
+          '<td class="wrap-cell">' + escapeHtml(r.type || '-') + '</td>' +
+          '<td>' + escapeHtml(r.year || '-') + '</td>' +
+          '<td>' + escapeHtml(r.age || '-') + '</td>' +
+          '<td class="wrap-cell">' + escapeHtml(r.land || '-') + '</td>' +
           '<td>' + condHtml + '</td>' +
           '<td class="wrap-cell">' + coordLink(r.coord) + '</td>' +
-          '<td class="wrap-cell">' + (r.address || '-') + '</td>';
+          '<td class="wrap-cell">' + escapeHtml(r.address || '-') + '</td>';
         frag.appendChild(tr);
       });
       detailBody.appendChild(frag);
@@ -1348,16 +1418,28 @@ function initMapTab(DETAIL) {
     });
     ampSel.innerHTML = '<option value="">ทั้งหมด</option>';
 
+    // same keyboard-accessible chip builder used in the detail explorer tab
     function buildChips(container, values, activeSet, onChange) {
       container.innerHTML = '';
       values.forEach(function (v) {
         var chip = document.createElement('div');
         chip.className = 'chip' + (activeSet.has(v) ? ' active' : '');
         chip.textContent = v;
-        chip.addEventListener('click', function () {
+        chip.setAttribute('role', 'button');
+        chip.setAttribute('tabindex', '0');
+        chip.setAttribute('aria-pressed', activeSet.has(v) ? 'true' : 'false');
+        function toggleChip() {
           if (activeSet.has(v)) activeSet.delete(v); else activeSet.add(v);
           chip.classList.toggle('active');
+          chip.setAttribute('aria-pressed', activeSet.has(v) ? 'true' : 'false');
           onChange();
+        }
+        chip.addEventListener('click', toggleChip);
+        chip.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+            e.preventDefault();
+            toggleChip();
+          }
         });
         container.appendChild(chip);
       });
@@ -1427,7 +1509,6 @@ function renderMapMarkers() {
     });
     cluster.addLayers(markers);
 
-    var totalMatchingBeforeCoordFilter = markers.length + 0; // rows already coord-filtered upstream
     var resultEl = document.getElementById('mapResultCount');
     if (resultEl) resultEl.textContent = 'แสดง ' + rows.length.toLocaleString() + ' หมุดบนแผนที่';
     var skipEl = document.getElementById('mapSkippedNote');
@@ -1537,6 +1618,14 @@ function loadData() {
       try {
         if (!results.data || !results.data.length) throw new Error('empty CSV result');
         var built = processRows(results.data);
+
+        if (built.DATA.skipped_category_count > 0) {
+          console.warn(
+            'พบ ' + built.DATA.skipped_category_count + ' แถวที่มีชื่อ "ประเภทอาคาร" ไม่ตรงกับที่ระบบรู้จัก (จึงไม่ถูกนับ): ',
+            built.DATA.skipped_category_names.join(', ')
+          );
+        }
+
         renderOverview(built.DATA);
         initDetailExplorer(built.DETAIL);
         initMapTab(built.DETAIL);
@@ -1544,7 +1633,11 @@ function loadData() {
         applyTabVisibility();
         statusEl.className = 'load-status ok';
         var now = new Date();
-        statusText.textContent = '✅ ข้อมูลล่าสุด ณ ' + now.toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }) + ' · ' + built.DATA.total_records.toLocaleString() + ' อำเภอ';
+        var baseMsg = '✅ ข้อมูลล่าสุด ณ ' + now.toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }) + ' · ' + built.DATA.total_records.toLocaleString() + ' อำเภอ';
+        if (built.DATA.skipped_category_count > 0) {
+          baseMsg += ' · ⚠️ ข้าม ' + built.DATA.skipped_category_count.toLocaleString() + ' แถวที่ชื่อประเภทอาคารไม่ตรงกับระบบ (ดูรายละเอียดใน console)';
+        }
+        statusText.textContent = baseMsg;
         refreshBtn.style.display = '';
       } catch (e) {
         console.error('processing sheet data failed', e);
