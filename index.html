@@ -398,7 +398,7 @@
     padding: 2px 7px; border-radius: 999px; border: 1px solid; white-space: nowrap; background: var(--surface-1);
   }
   .building-gallery {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
   }
   .building-gallery-item {
     margin: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
@@ -417,7 +417,7 @@
     height: 130px; font-size: 11.5px; color: var(--text-muted); background: var(--page-plane);
   }
   @media (max-width: 620px) {
-    .building-gallery { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+    .building-gallery { grid-template-columns: repeat(3, 1fr); gap: 8px; }
     .building-gallery-item img { height: 100px; }
   }
 </style>
@@ -490,30 +490,12 @@
 
     <div class="card">
       <h2>จำนวนอาคารแต่ละประเภท (มี / ไม่มี)</h2>
-      <p class="card-sub">นับจากจำนวนอำเภอที่ตอบแบบสำรวจ <span id="recCountText">…</span> รายการ · แสดงจำนวนอาคารรวมทุกหลัง และจำนวนอำเภอ/ทปค.จ. ที่ไม่มีอาคารแต่ละประเภท</p>
+      <p class="card-sub">ฐานคำนวณคงที่: อำเภอทั้งหมด 878 แห่ง + ทปค.จ. 76 แห่ง (รวม 954 แห่ง) · อาคารที่ว่าการอำเภอและหอประชุมอำเภอนับเฉพาะฐานอำเภอ (878 แห่ง) ส่วนอาคารประเภทที่พักอาศัยนับฐานรวมทั้งหมด (954 แห่ง) · จากข้อมูลที่ตอบแบบสำรวจแล้ว <span id="recCountText">…</span> รายการ</p>
       <div class="legend">
         <span class="legend-item"><span class="swatch" style="background:var(--series-1)"></span>มีอาคาร</span>
         <span class="legend-item"><span class="swatch" style="background:var(--absent)"></span>ไม่มีอาคาร</span>
       </div>
       <div id="presenceChart"></div>
-    </div>
-
-    <div class="card">
-      <h2>ตารางสรุป</h2>
-      <p class="card-sub">ประเภทอาคาร จำนวนที่มี/ไม่มี (แยกอำเภอ/ทปค.จ.) จำนวนอาคารรวมทุกหลัง และหมายเหตุกรณีมีมากกว่า 1 หลังขึ้นไป</p>
-      <table id="summaryTable">
-        <thead>
-          <tr>
-            <th>ประเภทอาคาร</th>
-            <th style="text-align:right">มี (แห่ง)</th>
-            <th style="text-align:right">ไม่มี (แห่ง)</th>
-            <th style="text-align:right">รวมอาคาร (หลัง)</th>
-            <th style="text-align:right">% มี</th>
-            <th>หมายเหตุ</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
     </div>
 
     <div class="two-col">
@@ -777,6 +759,27 @@ var CATEGORY_ORDER = [
 var CONDITION_ORDER = ['ใช้การได้ดี', 'พอใช้การได้', 'ชำรุดทรุดโทรม', 'ใช้การไม่ได้'];
 var MATERIAL_ORDER = ['คอนกรีต', 'คอนกรีตครึ่งไม้', 'ไม้', 'อื่นๆ'];
 
+// ---- Fixed administrative baselines (do NOT derive these from the sheet —
+// they are the official, constant counts of the country's administrative
+// units, used as the denominator for "ไม่มี" instead of counting "ไม่มี"
+// answers, which can under/over-count when respondents skip rows) ----
+var TOTAL_AMPHOE = 878;   // จำนวนอำเภอทั้งหมดทั่วประเทศ
+var TOTAL_TPK = 76;       // จำนวนที่ทำการปกครองจังหวัด (ทปค.จ.) ทั้งหมด
+var TOTAL_ALL = TOTAL_AMPHOE + TOTAL_TPK; // 954
+
+// which fixed baseline each building category is measured against:
+// ที่ว่าการอำเภอ/หอประชุมอำเภอ only ever apply to อำเภอ (tpkDenom = 0),
+// every other category (แฟลต + บ้านพักทุกระดับ) applies to ทั้งอำเภอและ ทปค.จ.
+var CATEGORY_SCOPE = {
+  'อาคารที่ว่าการอำเภอ': { amphoeDenom: TOTAL_AMPHOE, tpkDenom: 0 },
+  'หอประชุมอำเภอ': { amphoeDenom: TOTAL_AMPHOE, tpkDenom: 0 },
+  'อาคารที่พักอาศัย ค.ส.ล. 4 ชั้น (แฟลต)': { amphoeDenom: TOTAL_AMPHOE, tpkDenom: TOTAL_TPK },
+  'บ้านพักข้าราชการ ระดับ 9': { amphoeDenom: TOTAL_AMPHOE, tpkDenom: TOTAL_TPK },
+  'บ้านพักข้าราชการ ระดับ 7-8': { amphoeDenom: TOTAL_AMPHOE, tpkDenom: TOTAL_TPK },
+  'บ้านพักข้าราชการ ระดับ 3-6': { amphoeDenom: TOTAL_AMPHOE, tpkDenom: TOTAL_TPK },
+  'บ้านพักข้าราชการ ระดับ 1-2': { amphoeDenom: TOTAL_AMPHOE, tpkDenom: TOTAL_TPK }
+};
+
 function processRows(rows) {
   rows = rows.filter(function (r) {
     return (r['จังหวัด'] || '').trim() && (r['อำเภอ'] || '').trim() && (r['ประเภทอาคาร'] || '').trim();
@@ -861,7 +864,27 @@ function processRows(rows) {
   };
   CATEGORY_ORDER.forEach(function (name) {
     var cm = catMap[name];
-    var has = cm.hasSet.size, no = cm.noSet.size, total = has + no;
+    var scope = CATEGORY_SCOPE[name] || { amphoeDenom: TOTAL_AMPHOE, tpkDenom: TOTAL_TPK };
+
+    // "has" comes straight from the survey's "มี" answers this run,
+    // split by whether the responding location is an อำเภอ or a ทปค.จ.
+    var hasAmphoeCount = 0, hasTpkCount = 0;
+    cm.hasSet.forEach(function (key) {
+      var amphoeName = key.split('|')[1] || '';
+      if (amphoeName.indexOf('ทปค.จ.') === 0) hasTpkCount++; else hasAmphoeCount++;
+    });
+
+    // "ไม่มี" is derived from the FIXED administrative totals minus whoever
+    // actually said "มี" — NOT from counting the sheet's own "ไม่มี" answers
+    // (which under/over-count whenever respondents skip a row):
+    //   - ที่ว่าการอำเภอ / หอประชุมอำเภอ → baseline 878 (อำเภอ only)
+    //   - แฟลต + บ้านพักทุกระดับ → baseline 954 (878 อำเภอ + 76 ทปค.จ.)
+    var total = scope.amphoeDenom + scope.tpkDenom;
+    var has = hasAmphoeCount + hasTpkCount;
+    var noAmphoeCount = Math.max(0, scope.amphoeDenom - hasAmphoeCount);
+    var noTpkCount = Math.max(0, scope.tpkDenom - hasTpkCount);
+    var no = Math.max(0, total - has);
+
     var counts = Object.keys(cm.instanceCount).map(function (k) { return cm.instanceCount[k]; });
     var maxCount = counts.length ? Math.max.apply(null, counts) : 0;
     var multi = [];
@@ -873,18 +896,6 @@ function processRows(rows) {
     // total physical buildings — sums every หลังที่ 1, 2, 3… per location,
     // not just the number of locations that answered "มี"
     var totalBuildings = counts.reduce(function (sum, n) { return sum + n; }, 0);
-
-    // split "มี" and "ไม่มี" into อำเภอ vs ทปค.จ. so the chart/table can
-    // report exactly how many of each type is missing this building
-    var noAmphoeCount = 0, noTpkCount = 0, hasAmphoeCount = 0, hasTpkCount = 0;
-    cm.noSet.forEach(function (key) {
-      var amphoeName = key.split('|')[1] || '';
-      if (amphoeName.indexOf('ทปค.จ.') === 0) noTpkCount++; else noAmphoeCount++;
-    });
-    cm.hasSet.forEach(function (key) {
-      var amphoeName = key.split('|')[1] || '';
-      if (amphoeName.indexOf('ทปค.จ.') === 0) hasTpkCount++; else hasAmphoeCount++;
-    });
 
     DATA.categories.push({
       name: name, has: has, no: no, total: total,
@@ -915,13 +926,12 @@ function processRows(rows) {
 }
 
 // ============================================================
-// Section 1: overview stat tiles + charts + summary table
+// Section 1: overview stat tiles + charts
 // ============================================================
 function renderOverview(DATA) {
   try {
     document.getElementById('statRow').innerHTML = '';
     document.getElementById('presenceChart').innerHTML = '';
-    document.querySelector('#summaryTable tbody').innerHTML = '';
     document.getElementById('condChart').innerHTML = '';
     document.getElementById('matChart').innerHTML = '';
 
@@ -971,21 +981,6 @@ function renderOverview(DATA) {
         '<div class="note-line">รวมอาคารทั้งหมด <b>' + c.totalBuildings.toLocaleString() + '</b> หลัง' + (noteText ? ' · ' + noteText : '') + '</div>' +
         '<div class="note-line no-detail">ไม่มีอาคาร <b>' + c.no.toLocaleString() + '</b> แห่ง (อำเภอ ' + c.noAmphoeCount.toLocaleString() + ' · ทปค.จ. ' + c.noTpkCount.toLocaleString() + ')</div>';
       presenceChart.appendChild(row);
-    });
-
-    var tbody = document.querySelector('#summaryTable tbody');
-    DATA.categories.forEach(function (c) {
-      var pct = c.total ? (c.has / c.total * 100).toFixed(1) : '0.0';
-      var note = c.multi.length ? c.multi.map(function (m) { return 'มากกว่า ' + m.level + ' หลัง: ' + m.count + ' อำเภอ'; }).join(' | ') : 'ไม่มีการสำรวจอาคารหลังที่ 2 ขึ้นไป';
-      var noDetail = 'อำเภอ ' + c.noAmphoeCount.toLocaleString() + ' · ทปค.จ. ' + c.noTpkCount.toLocaleString();
-      var tr = document.createElement('tr');
-      tr.innerHTML = '<td>' + c.name + '</td>' +
-        '<td class="num">' + c.has + '</td>' +
-        '<td class="num">' + c.no + '<div class="tbl-sub">' + noDetail + '</div></td>' +
-        '<td class="num">' + c.totalBuildings.toLocaleString() + '</td>' +
-        '<td class="num">' + pct + '%</td>' +
-        '<td class="note">' + note + '</td>';
-      tbody.appendChild(tr);
     });
 
     var condChart = document.getElementById('condChart');
